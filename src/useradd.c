@@ -153,6 +153,7 @@ static bool
     gflg = false,		/* primary group ID for new account */
     Gflg = false,		/* secondary group set for new account */
     kflg = false,		/* specify a directory to fill new user directory */
+    wflg = false,		/* force copy of skel files */
     lflg = false,		/* do not add user to lastlog/faillog databases */
     mflg = false,		/* create user's home directory if it doesn't exist */
     Mflg = false,		/* do not create user's home directory even if CREATE_HOME is set */
@@ -778,6 +779,7 @@ static void usage (int status)
 	(void) fputs (_("  -s, --shell SHELL             login shell of the new account\n"), usageout);
 	(void) fputs (_("  -u, --uid UID                 user ID of the new account\n"), usageout);
 	(void) fputs (_("  -U, --user-group              create a group with the same name as the user\n"), usageout);
+	(void) fputs (_("  -w, --with-skel		always copy skel files\n"), usageout);
 #ifdef WITH_SELINUX
 	(void) fputs (_("  -Z, --selinux-user SEUSER     use a specific SEUSER for the SELinux user mapping\n"), usageout);
 #endif				/* WITH_SELINUX */
@@ -1040,6 +1042,7 @@ static void process_flags (int argc, char **argv)
 			{"groups",         required_argument, NULL, 'G'},
 			{"help",           no_argument,       NULL, 'h'},
 			{"skel",           required_argument, NULL, 'k'},
+			{"with-skel",      no_argument,       NULL, 'w'},
 			{"key",            required_argument, NULL, 'K'},
 			{"no-log-init",    no_argument,       NULL, 'l'},
 			{"create-home",    no_argument,       NULL, 'm'},
@@ -1059,9 +1062,9 @@ static void process_flags (int argc, char **argv)
 		};
 		while ((c = getopt_long (argc, argv,
 #ifdef WITH_SELINUX
-		                         "b:c:d:De:f:g:G:hk:K:lmMNop:rR:s:u:UZ:",
+		                         "b:c:d:De:f:g:G:hk:K:lmMNowp:rR:s:u:UZ:",
 #else				/* !WITH_SELINUX */
-		                         "b:c:d:De:f:g:G:hk:K:lmMNop:rR:s:u:U",
+		                         "b:c:d:De:f:g:G:hk:K:lmMNowp:rR:s:u:U",
 #endif				/* !WITH_SELINUX */
 		                         long_options, NULL)) != -1) {
 			switch (c) {
@@ -1183,6 +1186,9 @@ static void process_flags (int argc, char **argv)
 				def_template = optarg;
 				kflg = true;
 				break;
+			case 'w':
+				wflg = true;
+				break;
 			case 'K':
 				/*
 				 * override login.defs defaults (-K name=value)
@@ -1299,6 +1305,13 @@ static void process_flags (int argc, char **argv)
 		         _("%s: %s flag is only allowed with the %s flag\n"),
 		         Prog, "-k", "-m");
 		usage (E_USAGE);
+	}
+	if (wflg && !dflg) {
+		fprintf (stderr,
+		         _("%s: %s flag is only allowed with the %s flag\n"),
+		         Prog, "-w", "-d");
+		usage (E_USAGE);
+		
 	}
 	if (Uflg && gflg) {
 		fprintf (stderr,
@@ -2263,7 +2276,7 @@ int main (int argc, char **argv)
 
 	if (mflg) {
 		create_home ();
-		if (home_added) {
+		if (home_added || wflg) {
 			copy_tree (def_template, user_home, false, false,
 			           (uid_t)-1, user_id, (gid_t)-1, user_gid);
 		} else {
